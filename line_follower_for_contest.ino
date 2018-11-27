@@ -21,6 +21,8 @@
 #define LQ1 9
 #define LQ0 10
 
+#define LEFT_90    91
+#define RIGHT_90   92
 #define Y_JUNCTION 101
 #define T_JUNCTION 102
 
@@ -30,9 +32,9 @@ int sensorL2, sensorL1, sensorR1, sensorR2;
  * PID gain parameters
  * Tuning method based on https://robotics.stackexchange.com/a/174
  */
-const float Kp = 8;
+const float Kp = 7;
 const float Ki = 0;
-const float Kd = 5;
+const float Kd = 0;
 
 int error;
 int previousError = 0;
@@ -40,7 +42,8 @@ float integral = 0;
 float derivative;
 float direction;
 
-int loopDuration;
+unsigned long previousMicros;
+unsigned long loopDuration;
 
 // Branch handling
 enum Turn {Left, Right};
@@ -51,6 +54,11 @@ int branchIdx = 0;
 enum Stage {Waiting, Running1, UTurn, Running2, Finish};
 Stage stage = Waiting;
 
+boolean enableButton = true;
+unsigned long buttonCooldown;
+
+boolean enable90Turn = false;
+
 /**
  * We implements a PID controller as a control loop feedback mechanism for the
  * robot car.
@@ -58,9 +66,9 @@ Stage stage = Waiting;
  */
 float pidController(float error)
 {
-  float dt = loopDuration / 1000;
+  float dt = loopDuration / 1000000;
   integral += error * dt;
-  derivative = (error - previousError) / dt;
+  derivative = error - previousError;
   float output = (Kp * error) + (Ki * integral) + (Kd * derivative);
   return output;
 }
@@ -104,6 +112,14 @@ void turnToSetPoint(int leftSpeed, int rightSpeed)
   } while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2));
 }
 
+boolean bumperTriggered() {
+  if ((!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) && (millis() > buttonCooldown) && enableButton) {
+    buttonCooldown = millis() + 5000;
+    return true;
+  }
+  return false;
+}
+
 /**
  * Return the binary value of an integer at a specified bit.
  */
@@ -140,7 +156,8 @@ void setup()
 
   constantSpeed(0, 0);
 
-  previousMillis = millis();
+  buttonCooldown = millis();
+  previousMicros = micros();
 }
 
 void loop()
@@ -149,25 +166,48 @@ void loop()
 
   switch (stage) {
   case Waiting:
-    if (!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) stage = Running1;
+    if (bumperTriggered()) {
+      do {
+        readSensorValues();
+        delay(100);
+      } while (!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2);
+      stage = Running1;
+      enableButton = false;
+    }
     return;
   case Running1:
-    if (!sensorL2 && sensorL1 && !sensorR1 && !sensorR2) stage = UTurn;
+    if (bumperTriggered()) {
+      stage = UTurn;
+      enableButton = false;
+      return;
+    }
     break;
   case UTurn:
+    constantSpeed(-15, -15);
+    delay(500);
+    constantSpeed(15, -15);
+    delay(500);
     turnToSetPoint(15, -15);
     stage = Running2;
     return;
   case Running2:
-    if (!sensorL2 && sensorL1 && !sensorR1 && !sensorR2) stage = Finish;
+    if (bumperTriggered()) {
+      stage = Finish;
+      return;
+    }
     break;
   case Finish:
     constantSpeed(0, 0);
     delay(100000);
   }
 
-  if      (!sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = Y_JUNCTION;
-  else if (!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) error = T_JUNCTION;
+  if      (!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) error = T_JUNCTION;
+  else if (enable90Turn &&
+           ((!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) ||
+            (!sensorL2 && !sensorL1 &&  sensorR1 && sensorR2))) error = LEFT_90;
+  else if (enable90Turn &&
+           ((sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) ||
+            (sensorL2 &&  sensorL1 && !sensorR1 && !sensorR2))) error = RIGHT_90;
   else if ( sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = 3;
   else if ( sensorL2 &&  sensorL1 && !sensorR1 && !sensorR2) error = 2;
   else if ( sensorL2 &&  sensorL1 && !sensorR1 &&  sensorR2) error = 1;
@@ -179,22 +219,29 @@ void loop()
   switch (error) {
   case T_JUNCTION:
     switch (branchSequence[branchIdx++]) {
-    case Left:
-      turnToSetPoint(-7, 12);
-      break;
-    case Right:
-      turnToSetPoint(12, -7);
-      break;
+    case Left: turnToSetPoint(-7, 15); break;
+    case Right: turnToSetPoint(15, -7); break;
     }
+
+    if (branchIdx == 3) enableButton = enable90Turn = true;
+    else if (branchIdx == 4) enable90Turn = false;
+    else if (branchIdx == 6) enableButton = true;
     break;
-  case Y_JUNCTION:
+
+  case LEFT_90:
+    if (enable90Turn) turnToSetPoint(-10, 15);
     break;
+
+  case RIGHT_90:
+    if (enable90Turn) turnToSetPoint(15, -10);
+    break;
+
   default:
     direction = pidController(error);
     speedControl((int) direction);
     previousError = error;
   }
 
-  unsigned long currentMillis = millis();
-  loopDuration = currentMillis - previousError;
+  unsigned long currentMicros = micros();
+  loopDuration = currentMicros - previousMicros;
 }
