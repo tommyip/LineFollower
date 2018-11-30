@@ -52,12 +52,15 @@ int branchIdx = 0;
 
 // Run handling
 enum Stage {Waiting, Running1, UTurn, Running2, Finish};
-Stage stage = Waiting;
+Stage stage = Running1;//Waiting;
 
 boolean enableButton = true;
 unsigned long buttonCooldown;
 
-boolean enable90Turn = false;
+boolean enable90Turn = true; //false;
+unsigned long turn90Cooldown;
+
+int speed = 15;
 
 /**
  * We implements a PID controller as a control loop feedback mechanism for the
@@ -81,8 +84,8 @@ float pidController(float error)
  */
 void speedControl(int direction)
 {
-  int leftSpeed = min(15 + direction, 15);
-  int rightSpeed = min(15 - direction, 15);
+  int leftSpeed = min(speed + direction, 15);
+  int rightSpeed = min(speed - direction, 15);
   constantSpeed(leftSpeed, rightSpeed);
 }
 
@@ -109,7 +112,7 @@ void turnToSetPoint(int leftSpeed, int rightSpeed)
   do {
     readSensorValues();
     constantSpeed(leftSpeed, rightSpeed);
-  } while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2));
+  } while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2) && !(!sensorL2 && !sensorL1 && sensorR1 && sensorR2) && !(sensorL2 && sensorL1 && !sensorR1 && !sensorR2));
 }
 
 boolean bumperTriggered() {
@@ -229,11 +232,17 @@ void loop()
     break;
 
   case LEFT_90:
-    if (enable90Turn) turnToSetPoint(-10, 15);
+    if (enable90Turn && millis() > turn90Cooldown) {
+      turnToSetPoint(-7, 7);
+      turn90Cooldown = millis() + 1000;
+    }
     break;
 
   case RIGHT_90:
-    if (enable90Turn) turnToSetPoint(15, -10);
+    if (enable90Turn && millis() > turn90Cooldown) {
+      turnToSetPoint(7, -7);
+      turn90Cooldown = millis() + 1000;
+    }
     break;
 
   default:
