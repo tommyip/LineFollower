@@ -32,9 +32,9 @@ int sensorL2, sensorL1, sensorR1, sensorR2;
  * PID gain parameters
  * Tuning method based on https://robotics.stackexchange.com/a/174
  */
-const float Kp = 7;
+const float Kp = 9;
 const float Ki = 0;
-const float Kd = 0;
+const float Kd = 9;
 
 int error;
 int previousError = 0;
@@ -52,12 +52,12 @@ int branchIdx = 0;
 
 // Run handling
 enum Stage {Waiting, Running1, UTurn, Running2, Finish};
-Stage stage = Running1;//Waiting;
+Stage stage = Waiting;
 
 boolean enableButton = true;
 unsigned long buttonCooldown;
 
-boolean enable90Turn = true; //false;
+boolean enable90Turn = false;
 unsigned long turn90Cooldown;
 
 int speed = 15;
@@ -112,7 +112,7 @@ void turnToSetPoint(int leftSpeed, int rightSpeed)
   do {
     readSensorValues();
     constantSpeed(leftSpeed, rightSpeed);
-  } while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2) && !(!sensorL2 && !sensorL1 && sensorR1 && sensorR2) && !(sensorL2 && sensorL1 && !sensorR1 && !sensorR2));
+  } while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2));
 }
 
 boolean bumperTriggered() {
@@ -159,7 +159,7 @@ void setup()
 
   constantSpeed(0, 0);
 
-  buttonCooldown = millis();
+  buttonCooldown = turn90Cooldown = millis();
   previousMicros = micros();
 }
 
@@ -187,9 +187,9 @@ void loop()
     break;
   case UTurn:
     constantSpeed(-15, -15);
-    delay(500);
+    delay(100);
     constantSpeed(15, -15);
-    delay(500);
+    delay(100);
     turnToSetPoint(15, -15);
     stage = Running2;
     return;
@@ -204,51 +204,41 @@ void loop()
     delay(100000);
   }
 
-  if      (!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) error = T_JUNCTION;
-  else if (enable90Turn &&
-           ((!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) ||
-            (!sensorL2 && !sensorL1 &&  sensorR1 && sensorR2))) error = LEFT_90;
-  else if (enable90Turn &&
-           ((sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) ||
-            (sensorL2 &&  sensorL1 && !sensorR1 && !sensorR2))) error = RIGHT_90;
-  else if ( sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = 3;
-  else if ( sensorL2 &&  sensorL1 && !sensorR1 && !sensorR2) error = 2;
-  else if ( sensorL2 &&  sensorL1 && !sensorR1 &&  sensorR2) error = 1;
-  else if ( sensorL2 && !sensorL1 && !sensorR1 &&  sensorR2) error = 0;
-  else if ( sensorL2 && !sensorL1 &&  sensorR1 &&  sensorR2) error = -1;
-  else if (!sensorL2 && !sensorL1 &&  sensorR1 &&  sensorR2) error = -2;
-  else if (!sensorL2 &&  sensorL1 &&  sensorR1 &&  sensorR2) error = -3;
-
-  switch (error) {
-  case T_JUNCTION:
-    switch (branchSequence[branchIdx++]) {
-    case Left: turnToSetPoint(-7, 15); break;
-    case Right: turnToSetPoint(15, -7); break;
+  if (!enable90Turn) {
+    if      (!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) error = T_JUNCTION;
+    else if ( sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = 3;
+    else if ( sensorL2 &&  sensorL1 && !sensorR1 && !sensorR2) error = 2;
+    else if ( sensorL2 &&  sensorL1 && !sensorR1 &&  sensorR2) error = 1;
+    else if ( sensorL2 && !sensorL1 && !sensorR1 &&  sensorR2) error = 0;
+    else if ( sensorL2 && !sensorL1 &&  sensorR1 &&  sensorR2) error = -1;
+    else if (!sensorL2 && !sensorL1 &&  sensorR1 &&  sensorR2) error = -2;
+    else if (!sensorL2 &&  sensorL1 &&  sensorR1 &&  sensorR2) error = -3;
+  
+    switch (error) {
+    case T_JUNCTION:
+      switch (branchSequence[branchIdx++]) {
+      case Left: turnToSetPoint(-7, 15); break;
+      case Right: turnToSetPoint(15, -7); break;
+      }
+  
+      if (branchIdx == 3) enableButton = enable90Turn = true;
+      else if (branchIdx == 4) enable90Turn = false;
+      else if (branchIdx == 6) enableButton = true;
+      break;
+  
+    default:
+      direction = pidController(error);
+      speedControl((int) direction);
+      previousError = error;
     }
-
-    if (branchIdx == 3) enableButton = enable90Turn = true;
-    else if (branchIdx == 4) enable90Turn = false;
-    else if (branchIdx == 6) enableButton = true;
-    break;
-
-  case LEFT_90:
-    if (enable90Turn && millis() > turn90Cooldown) {
-      turnToSetPoint(-7, 7);
-      turn90Cooldown = millis() + 1000;
+  } else {
+    if (!sensorL2) {
+      constantSpeed(-5, 10);
+    } else if (!sensorR2) {
+      constantSpeed(10, -5);
+    } else {
+      constantSpeed(15, 15);
     }
-    break;
-
-  case RIGHT_90:
-    if (enable90Turn && millis() > turn90Cooldown) {
-      turnToSetPoint(7, -7);
-      turn90Cooldown = millis() + 1000;
-    }
-    break;
-
-  default:
-    direction = pidController(error);
-    speedControl((int) direction);
-    previousError = error;
   }
 
   unsigned long currentMicros = micros();
