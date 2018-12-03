@@ -62,6 +62,8 @@ unsigned long turn90Cooldown;
 
 int speed = 15;
 
+unsigned long lastTurnTime;
+
 /**
  * We implements a PID controller as a control loop feedback mechanism for the
  * robot car.
@@ -113,6 +115,23 @@ void turnToSetPoint(int leftSpeed, int rightSpeed)
     readSensorValues();
     constantSpeed(leftSpeed, rightSpeed);
   } while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2));
+}
+
+void turnToSetPointRamp(int leftSpeed, int rightSpeed, int leftSpeedSlow, int rightSpeedSlow)
+{
+  int notOriginalLine = millis() + 100;
+  while (!(!sensorL2 && !sensorL1 && sensorR1 && sensorR2) && !(sensorL2 && sensorL1 && !sensorR1 && !sensorR2)) {
+    readSensorValues();
+    if (millis() > notOriginalLine && (sensorL2 && !sensorL1 && !sensorR1 && sensorR2)) {
+      return;
+    }
+    constantSpeed(leftSpeed, rightSpeed);
+  }
+
+  while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2)) {
+    readSensorValues();
+    constantSpeed(leftSpeedSlow, rightSpeedSlow);
+  }
 }
 
 boolean bumperTriggered() {
@@ -204,41 +223,46 @@ void loop()
     delay(100000);
   }
 
-  if (!enable90Turn) {
-    if      (!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) error = T_JUNCTION;
-    else if ( sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = 3;
-    else if ( sensorL2 &&  sensorL1 && !sensorR1 && !sensorR2) error = 2;
-    else if ( sensorL2 &&  sensorL1 && !sensorR1 &&  sensorR2) error = 1;
-    else if ( sensorL2 && !sensorL1 && !sensorR1 &&  sensorR2) error = 0;
-    else if ( sensorL2 && !sensorL1 &&  sensorR1 &&  sensorR2) error = -1;
-    else if (!sensorL2 && !sensorL1 &&  sensorR1 &&  sensorR2) error = -2;
-    else if (!sensorL2 &&  sensorL1 &&  sensorR1 &&  sensorR2) error = -3;
-  
-    switch (error) {
-    case T_JUNCTION:
-      switch (branchSequence[branchIdx++]) {
-      case Left: turnToSetPoint(-7, 15); break;
-      case Right: turnToSetPoint(15, -7); break;
-      }
-  
-      if (branchIdx == 3) enableButton = enable90Turn = true;
-      else if (branchIdx == 4) enable90Turn = false;
-      else if (branchIdx == 6) enableButton = true;
-      break;
-  
-    default:
-      direction = pidController(error);
-      speedControl((int) direction);
-      previousError = error;
+  if      (!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) error = T_JUNCTION;
+  else if ((!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) && enable90Turn) error = LEFT_90;
+  else if ((sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) && enable90Turn) error = RIGHT_90;
+  else if ( sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = 3;
+  else if ( sensorL2 &&  sensorL1 && !sensorR1 && !sensorR2) error = 2;
+  else if ( sensorL2 &&  sensorL1 && !sensorR1 &&  sensorR2) error = 1;
+  else if ( sensorL2 && !sensorL1 && !sensorR1 &&  sensorR2) error = 0;
+  else if ( sensorL2 && !sensorL1 &&  sensorR1 &&  sensorR2) error = -1;
+  else if (!sensorL2 && !sensorL1 &&  sensorR1 &&  sensorR2) error = -2;
+  else if (!sensorL2 &&  sensorL1 &&  sensorR1 &&  sensorR2) error = -3;
+
+  switch (error) {
+  case T_JUNCTION:
+    switch (branchSequence[branchIdx++]) {
+    case Left: turnToSetPoint(-7, 15); break;
+    case Right: turnToSetPoint(15, -7); break;
     }
-  } else {
-    if (!sensorL2) {
-      constantSpeed(-5, 10);
-    } else if (!sensorR2) {
-      constantSpeed(10, -5);
-    } else {
-      constantSpeed(15, 15);
-    }
+
+    if (branchIdx == 3) enableButton = enable90Turn = true;
+    else if (branchIdx == 4) enable90Turn = false;
+    else if (branchIdx == 6) enableButton = true;
+    break;
+  case LEFT_90:
+    constantSpeed(15, 15);
+    delay(millis() - lastTurnTime < 500 ? 50 : 25);
+    turnToSetPointRamp(-8, 15, -7, 10);
+    buttonCooldown = millis() + 1000;
+    lastTurnTime = millis();
+    break;
+  case RIGHT_90:
+    constantSpeed(15, 15);
+    delay(millis() - lastTurnTime < 500 ? 50 : 25);
+    turnToSetPointRamp(15, -8, 10, -7);
+    buttonCooldown = millis() + 1000;
+    lastTurnTime = millis();
+    break;
+  default:
+    direction = pidController(error);
+    speedControl((int) direction);
+    previousError = error;
   }
 
   unsigned long currentMicros = micros();
