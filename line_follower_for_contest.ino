@@ -58,9 +58,6 @@ boolean enableButton = true;
 unsigned long buttonCooldown;
 
 boolean enable90Turn = false;
-unsigned long turn90Cooldown;
-
-int speed = 15;
 
 unsigned long lastTurnTime;
 
@@ -86,8 +83,8 @@ float pidController(float error)
  */
 void speedControl(int direction)
 {
-  int leftSpeed = min(speed + direction, 15);
-  int rightSpeed = min(speed - direction, 15);
+  int leftSpeed = min(15 + direction, 15);
+  int rightSpeed = min(15 - direction, 15);
   constantSpeed(leftSpeed, rightSpeed);
 }
 
@@ -178,7 +175,7 @@ void setup()
 
   constantSpeed(0, 0);
 
-  buttonCooldown = turn90Cooldown = millis();
+  buttonCooldown = millis();
   previousMicros = micros();
 }
 
@@ -207,9 +204,9 @@ void loop()
   case UTurn:
     constantSpeed(-15, -15);
     delay(100);
-    constantSpeed(15, -15);
+    constantSpeed(-15, 15);
     delay(100);
-    turnToSetPoint(15, -15);
+    turnToSetPoint(-15, 15);
     stage = Running2;
     return;
   case Running2:
