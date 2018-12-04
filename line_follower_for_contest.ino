@@ -34,7 +34,7 @@ int sensorL2, sensorL1, sensorR1, sensorR2;
  */
 const float Kp = 9;
 const float Ki = 0;
-const float Kd = 9;
+const float Kd = 5;
 
 int error;
 int previousError = 0;
@@ -52,14 +52,17 @@ int branchIdx = 0;
 
 // Run handling
 enum Stage {Waiting, Running1, UTurn, Running2, Finish};
-Stage stage = Waiting;
+Stage stage = Running1;//Waiting;
 
 boolean enableButton = true;
 unsigned long buttonCooldown;
 
-boolean enable90Turn = false;
+boolean enable90Turn = true;//false;
 
 unsigned long lastTurnTime;
+
+boolean firstTurnTurned = false;
+int speed = 15;
 
 /**
  * We implements a PID controller as a control loop feedback mechanism for the
@@ -83,8 +86,8 @@ float pidController(float error)
  */
 void speedControl(int direction)
 {
-  int leftSpeed = min(15 + direction, 15);
-  int rightSpeed = min(15 - direction, 15);
+  int leftSpeed = min(speed + direction, 15);
+  int rightSpeed = min(speed - direction, 15);
   constantSpeed(leftSpeed, rightSpeed);
 }
 
@@ -92,6 +95,9 @@ void constantSpeed(int leftSpeed, int rightSpeed)
 {
   digitalWrite(DIR_L, leftSpeed < 0 ? LOW : HIGH);
   digitalWrite(DIR_R, rightSpeed < 0 ? LOW : HIGH);
+  if (rightSpeed < 0) {
+    rightSpeed -= 1;
+  }
   leftSpeed = constrain(abs(leftSpeed), 0, 15);
   rightSpeed = constrain(abs(rightSpeed), 0, 15);
 
@@ -116,7 +122,7 @@ void turnToSetPoint(int leftSpeed, int rightSpeed)
 
 void turnToSetPointRamp(int leftSpeed, int rightSpeed, int leftSpeedSlow, int rightSpeedSlow)
 {
-  int notOriginalLine = millis() + 100;
+  int notOriginalLine = millis() + 90;  // Less -> Skip, More -> Spin
   while (!(!sensorL2 && !sensorL1 && sensorR1 && sensorR2) && !(sensorL2 && sensorL1 && !sensorR1 && !sensorR2)) {
     readSensorValues();
     if (millis() > notOriginalLine && (sensorL2 && !sensorL1 && !sensorR1 && sensorR2)) {
@@ -177,6 +183,7 @@ void setup()
 
   buttonCooldown = millis();
   previousMicros = micros();
+  lastTurnTime = millis();
 }
 
 void loop()
@@ -243,16 +250,35 @@ void loop()
     else if (branchIdx == 6) enableButton = true;
     break;
   case LEFT_90:
-    constantSpeed(15, 15);
-    delay(millis() - lastTurnTime < 500 ? 50 : 25);
-    turnToSetPointRamp(-8, 15, -7, 10);
+    if (millis() - lastTurnTime < 500) {
+      constantSpeed(15, 5);
+      delay(50);
+      turnToSetPointRamp(-8, 15, -7, 10);
+    } else {
+      turnToSetPointRamp(-8, 15, -10, 10);
+      constantSpeed(-5, 15);
+      delay(50);
+    }
+    
     buttonCooldown = millis() + 1000;
     lastTurnTime = millis();
     break;
   case RIGHT_90:
-    constantSpeed(15, 15);
-    delay(millis() - lastTurnTime < 500 ? 50 : 25);
-    turnToSetPointRamp(15, -8, 10, -7);
+    if (!firstTurnTurned) {
+      turnToSetPoint(15, -5);
+      firstTurnTurned = true;
+      break;
+    }
+    if (millis() - lastTurnTime < 500) {
+      constantSpeed(5, 15);
+      delay(50);
+      turnToSetPointRamp(15, -8, 10, -7);
+    } else {
+      turnToSetPointRamp(15, -8, 10, -10);
+      constantSpeed(-5, 15);
+      delay(50);
+    }
+    
     buttonCooldown = millis() + 1000;
     lastTurnTime = millis();
     break;
