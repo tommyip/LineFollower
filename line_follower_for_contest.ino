@@ -34,7 +34,7 @@ int sensorL2, sensorL1, sensorR1, sensorR2;
  */
 const float Kp = 8;
 const float Ki = 0;
-const float Kd = 0;
+const float Kd = 6;
 
 int error;
 int previousError = 0;
@@ -52,17 +52,20 @@ int branchIdx = 0;
 
 // Run handling
 enum Stage {Waiting, Running1, UTurn, Running2, Finish};
-Stage stage = Waiting;
+Stage stage = Running1;//Waiting;
 
 boolean enableButton = true;
 unsigned long buttonCooldown;
 
-boolean enable90Turn = false;
+boolean enable90Turn = true;//false;
 
 unsigned long lastTurnTime;
 
 boolean firstTurnTurned = false;
+Turn lastTurn = Right;
 int speed = 15;
+
+boolean useTruthTable = false;
 
 /**
  * We implements a PID controller as a control loop feedback mechanism for the
@@ -118,23 +121,6 @@ void turnToSetPoint(int leftSpeed, int rightSpeed)
     readSensorValues();
     constantSpeed(leftSpeed, rightSpeed);
   } while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2));
-}
-
-void turnToSetPointRamp(int leftSpeed, int rightSpeed, int leftSpeedSlow, int rightSpeedSlow)
-{
-  int notOriginalLine = millis() + 90;  // Less -> Skip, More -> Spin
-  while (!(!sensorL2 && !sensorL1 && sensorR1 && sensorR2) && !(sensorL2 && sensorL1 && !sensorR1 && !sensorR2)) {
-    readSensorValues();
-    if (millis() > notOriginalLine && (sensorL2 && !sensorL1 && !sensorR1 && sensorR2)) {
-      return;
-    }
-    constantSpeed(leftSpeed, rightSpeed);
-  }
-
-  while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2)) {
-    readSensorValues();
-    constantSpeed(leftSpeedSlow, rightSpeedSlow);
-  }
 }
 
 boolean bumperTriggered() {
@@ -227,9 +213,7 @@ void loop()
     delay(100000);
   }
 
-  if      (((!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) || (!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) || (sensorL2 && !sensorL1 && !sensorR1 && !sensorR2)) && !enable90Turn) error = T_JUNCTION;
-  else if ((!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) && enable90Turn) error = LEFT_90;
-  else if ((sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) && enable90Turn) error = RIGHT_90;
+  if      ((!sensorL2 && !sensorR2) && !enable90Turn) error = T_JUNCTION;
   else if ( sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = 3;
   else if ( sensorL2 &&  sensorL1 && !sensorR1 && !sensorR2) error = 2;
   else if ( sensorL2 &&  sensorL1 && !sensorR1 &&  sensorR2) error = 1;
@@ -245,47 +229,46 @@ void loop()
     case Right: turnToSetPoint(15, -7); break;
     }
 
-    if (branchIdx == 3) enableButton = enable90Turn = true;
+    if (branchIdx == 2) useTruthTable = true;
+    else if (branchIdx == 3) {
+      enableButton = enable90Turn = true;
+      useTruthTable = false;
+    }
     else if (branchIdx == 4) enable90Turn = false;
     else if (branchIdx == 6) enableButton = true;
     break;
-  case LEFT_90:
-    if (millis() - lastTurnTime < 500) {
-      constantSpeed(15, 5);
-      delay(50);
-      turnToSetPointRamp(-8, 15, -7, 10);
-    } else {
-      turnToSetPointRamp(-8, 15, -10, 10);
-      constantSpeed(-5, 15);
-      delay(50);
-    }
-    
-    buttonCooldown = millis() + 1000;
-    lastTurnTime = millis();
-    break;
-  case RIGHT_90:
-    if (!firstTurnTurned) {
-      turnToSetPoint(15, -5);
-      firstTurnTurned = true;
-      break;
-    }
-    if (millis() - lastTurnTime < 500) {
-      constantSpeed(5, 15);
-      delay(50);
-      turnToSetPointRamp(15, -8, 10, -7);
-    } else {
-      turnToSetPointRamp(15, -8, 10, -10);
-      constantSpeed(15, -5);
-      delay(50);
-    }
-    
-    buttonCooldown = millis() + 1000;
-    lastTurnTime = millis();
-    break;
   default:
-    direction = pidController(error);
-    speedControl((int) direction);
-    previousError = error;
+    if (useTruthTable) {
+      if (!sensorL2 && sensorR2) {
+        constantSpeed(-7, 15);
+      } else if (sensorL2 && !sensorR2) {
+        constantSpeed(15, -7);
+      } else {
+        constantSpeed(15, 15);
+      }
+    } else {
+      if (!sensorL2 && sensorR2 && enable90Turn) {
+        constantSpeed(-6, 15);
+        do {
+          readSensorValues();
+        } while (sensorR2);
+        do {
+          readSensorValues();
+        } while (!sensorR2);
+      } else if (sensorL2 && !sensorR2 && enable90Turn) {
+        constantSpeed(15, -6);
+        do {
+          readSensorValues();
+        } while (sensorL2);
+        do {
+          readSensorValues();
+        } while (!sensorL2);
+      } else {
+        direction = pidController(error);
+        speedControl((int) direction);
+        previousError = error;
+      }
+    }
   }
 
   unsigned long currentMicros = micros();
