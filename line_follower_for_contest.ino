@@ -32,9 +32,9 @@ int sensorL2, sensorL1, sensorR1, sensorR2;
  * PID gain parameters
  * Tuning method based on https://robotics.stackexchange.com/a/174
  */
-const float Kp = 9;
+const float Kp = 8;
 const float Ki = 0;
-const float Kd = 5;
+const float Kd = 0;
 
 int error;
 int previousError = 0;
@@ -52,12 +52,12 @@ int branchIdx = 0;
 
 // Run handling
 enum Stage {Waiting, Running1, UTurn, Running2, Finish};
-Stage stage = Running1;//Waiting;
+Stage stage = Waiting;
 
 boolean enableButton = true;
 unsigned long buttonCooldown;
 
-boolean enable90Turn = true;//false;
+boolean enable90Turn = false;
 
 unsigned long lastTurnTime;
 
@@ -227,7 +227,7 @@ void loop()
     delay(100000);
   }
 
-  if      (!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) error = T_JUNCTION;
+  if      (((!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) || (!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) || (sensorL2 && !sensorL1 && !sensorR1 && !sensorR2)) && !enable90Turn) error = T_JUNCTION;
   else if ((!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) && enable90Turn) error = LEFT_90;
   else if ((sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) && enable90Turn) error = RIGHT_90;
   else if ( sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = 3;
@@ -275,7 +275,7 @@ void loop()
       turnToSetPointRamp(15, -8, 10, -7);
     } else {
       turnToSetPointRamp(15, -8, 10, -10);
-      constantSpeed(-5, 15);
+      constantSpeed(15, -5);
       delay(50);
     }
     
