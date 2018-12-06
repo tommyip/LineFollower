@@ -59,6 +59,10 @@ int speed = 15;
 
 int slowTime = millis();
 
+unsigned long triggeredTime = 0;
+
+unsigned long disable90TurnTime;
+
 /**
  * We implements a PID controller as a control loop feedback mechanism for the
  * robot car.
@@ -114,7 +118,7 @@ void turnToSetPoint(int leftSpeed, int rightSpeed)
 }
 
 boolean bumperTriggered() {
-  if ((!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) && (millis() > buttonCooldown) && enableButton) {
+  if ((!sensorL2 && sensorL1 && !sensorR1 && !sensorR2) && enableButton && (millis() > buttonCooldown)) {
     buttonCooldown = millis() + 5000;
     return true;
   }
@@ -160,6 +164,8 @@ void setup()
   buttonCooldown = millis();
 }
 
+boolean running = false;
+
 void loop()
 {
   readSensorValues();
@@ -170,7 +176,7 @@ void loop()
       do {
         readSensorValues();
         delay(100);
-      } while (!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2);
+      } while (!sensorL2 && !sensorR2);
       stage = Running1;
       enableButton = false;
     }
@@ -178,12 +184,15 @@ void loop()
   case Running1:
     if (bumperTriggered()) {
       constantSpeed(-15, -15);
-      delay(100);
+      delay(200);
       constantSpeed(-15, 15);
       delay(200);
       turnToSetPoint(-15, 15);
       stage = Running2;
       enableButton = false;
+      speed = 13;
+      slowTime = millis() + 2000;
+      disable90TurnTime = millis() + (10 * 1000);
       return;
     }
     break;
@@ -211,15 +220,18 @@ void loop()
     case Right: turnToSetPoint(15, -5); break;
     }
 
-    if (branchIdx == 2) useTruthTable = true;
+    if (branchIdx == 2) { useTruthTable = true; }
     else if (branchIdx == 3) {
-      enableButton = true;
       enable90Turn = true;
       useTruthTable = false;
       slowTime = millis() + 3000;
       speed = 11;
+      enableButton = true;
     }
-    else if (branchIdx == 4) enable90Turn = false;  // unreachable due to T condition
+    else if (branchIdx == 4) {
+      enable90Turn = false;
+      speed = 15;
+    }
     else if (branchIdx == 6) enableButton = true;
     break;
   default:
@@ -235,20 +247,21 @@ void loop()
       if (millis() > slowTime) {
         speed = 15;
       }
+      if (millis() > disable90TurnTime) {
+        enable90Turn = false;
+      }
       if (!sensorL2 && enable90Turn) {
         if (!sensorL1) {
           constantSpeed(-13, 15);
         } else {
           constantSpeed(-8, 15);
         }
-        buttonCooldown = millis() + 200;
       } else if (!sensorR2 && enable90Turn) {
         if (!sensorR1) {
           constantSpeed(15, -13);
         } else {
           constantSpeed(15, -8);
         }
-        buttonCooldown = millis() + 200;
       } else {
         direction = pidController(error);
         speedControl((int) direction);
