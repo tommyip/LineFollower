@@ -92,6 +92,10 @@ void constantSpeed(int leftSpeed, int rightSpeed)
 {
   digitalWrite(DIR_L, leftSpeed < 0 ? LOW : HIGH);
   digitalWrite(DIR_R, rightSpeed < 0 ? LOW : HIGH);
+
+  if (leftSpeed < 0) {
+    leftSpeed -= 2;
+  }
   
   leftSpeed = constrain(abs(leftSpeed), 0, 15);
   rightSpeed = constrain(abs(rightSpeed), 0, 15);
@@ -188,9 +192,9 @@ void loop()
       turnToSetPoint(-15, 15);
       stage = Running2;
       enableButton = false;
-      speed = 11;
-      slowTime = millis() + 3000;
-      disable90TurnTime = millis() + (10 * 1000);
+      speed = 8;
+      slowTime = millis() + 4000;
+      disable90TurnTime = millis() + 10000;
       return;
     }
     break;
@@ -203,6 +207,7 @@ void loop()
   }
 
   if      ((!sensorL2 && !sensorR2) && !enable90Turn) error = T_JUNCTION;  // Try !L2 !L1 R1 !R2 without enable90Turn
+  else if (((!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) || (sensorL2 && !sensorL1 && !sensorR1 && !sensorR2)) && stage == Running2) error = T_JUNCTION;
   else if ( sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = 3;
   else if ( sensorL2 &&  sensorL1 && !sensorR1 && !sensorR2) error = 2;
   else if ( sensorL2 &&  sensorL1 && !sensorR1 &&  sensorR2) error = 1;
