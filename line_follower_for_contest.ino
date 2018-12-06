@@ -93,6 +93,10 @@ void constantSpeed(int leftSpeed, int rightSpeed)
   digitalWrite(DIR_L, leftSpeed < 0 ? LOW : HIGH);
   digitalWrite(DIR_R, rightSpeed < 0 ? LOW : HIGH);
 
+  if (rightSpeed < 0) {
+    rightSpeed -= 1;
+  }
+
   if (leftSpeed < 0) {
     leftSpeed -= 2;
   }
@@ -186,15 +190,15 @@ void loop()
   case Running1:
     if (bumperTriggered()) {
       constantSpeed(-15, -15);
-      delay(200);
+      delay(100);
       constantSpeed(-15, 15);
       delay(200);
       turnToSetPoint(-15, 15);
       stage = Running2;
       enableButton = false;
-      speed = 8;
-      slowTime = millis() + 4000;
-      disable90TurnTime = millis() + 10000;
+      speed = 12;
+      slowTime = millis() + 10000;
+      disable90TurnTime = millis() + 13000;
       return;
     }
     break;
@@ -206,8 +210,8 @@ void loop()
     break;
   }
 
-  if      ((!sensorL2 && !sensorR2) && !enable90Turn) error = T_JUNCTION;  // Try !L2 !L1 R1 !R2 without enable90Turn
-  else if (((!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) || (sensorL2 && !sensorL1 && !sensorR1 && !sensorR2)) && stage == Running2) error = T_JUNCTION;
+  if      ((!sensorL2 && !sensorR2) && !enable90Turn) error = T_JUNCTION;
+  else if (((!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) || (sensorL2 && !sensorL1 && !sensorR1 && !sensorR2)) && stage == Running2 && !enable90Turn) error = T_JUNCTION;
   else if ( sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = 3;
   else if ( sensorL2 &&  sensorL1 && !sensorR1 && !sensorR2) error = 2;
   else if ( sensorL2 &&  sensorL1 && !sensorR1 &&  sensorR2) error = 1;
@@ -234,8 +238,8 @@ void loop()
     else if (branchIdx == 4) {
       enable90Turn = false;
       speed = 15;
+      enableButton = true;
     }
-    else if (branchIdx == 6) enableButton = true;
     break;
   default:
     if (useTruthTable) {
@@ -252,6 +256,8 @@ void loop()
       } 
       if (millis() > disable90TurnTime && disable90TurnTime != 0) {
         enable90Turn = false;
+        disable90TurnTime = 0;
+        return;
       }
       if (!sensorL2 && enable90Turn) {
         if (!sensorL1) {
@@ -261,7 +267,7 @@ void loop()
         }
       } else if (!sensorR2 && enable90Turn) {
         if (!sensorR1) {
-          constantSpeed(15, -13);
+          constantSpeed(15, -12);
         } else {
           constantSpeed(15, -8);
         }
