@@ -196,9 +196,9 @@ void loop()
       turnToSetPoint(-15, 15);
       stage = Running2;
       enableButton = false;
-      speed = 12;
+      speed = 11;
       slowTime = millis() + 10000;
-      disable90TurnTime = millis() + 13000;
+      disable90TurnTime = millis() + 12000;
       return;
     }
     break;
@@ -210,6 +210,12 @@ void loop()
     break;
   }
 
+  if (millis() > disable90TurnTime && disable90TurnTime != 0) {
+    enable90Turn = false;
+    disable90TurnTime = 0;
+    return;
+  }
+
   if      ((!sensorL2 && !sensorR2) && !enable90Turn) error = T_JUNCTION;
   else if (((!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) || (sensorL2 && !sensorL1 && !sensorR1 && !sensorR2)) && stage == Running2 && !enable90Turn) error = T_JUNCTION;
   else if ( sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = 3;
@@ -219,7 +225,7 @@ void loop()
   else if ( sensorL2 && !sensorL1 &&  sensorR1 &&  sensorR2) error = -1;
   else if (!sensorL2 && !sensorL1 &&  sensorR1 &&  sensorR2) error = -2;
   else if (!sensorL2 &&  sensorL1 &&  sensorR1 &&  sensorR2) error = -3;
-
+  
   switch (error) {
   case T_JUNCTION:
     switch (branchSequence[branchIdx++]) {
@@ -253,11 +259,6 @@ void loop()
     } else {
       if (millis() > slowTime) {
         speed = 15;
-      } 
-      if (millis() > disable90TurnTime && disable90TurnTime != 0) {
-        enable90Turn = false;
-        disable90TurnTime = 0;
-        return;
       }
       if (!sensorL2 && enable90Turn) {
         if (!sensorL1) {
