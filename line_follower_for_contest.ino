@@ -63,6 +63,10 @@ unsigned long triggeredTime = 0;
 
 unsigned long disable90TurnTime = 0;
 
+unsigned long branchDisable = 0;
+
+boolean useTruthTable2 = false;
+
 /**
  * We implements a PID controller as a control loop feedback mechanism for the
  * robot car.
@@ -98,7 +102,7 @@ void constantSpeed(int leftSpeed, int rightSpeed)
   }
 
   if (leftSpeed < 0) {
-    leftSpeed -= 2;
+    leftSpeed -= 1;
   }
   
   leftSpeed = constrain(abs(leftSpeed), 0, 15);
@@ -189,16 +193,14 @@ void loop()
     return;
   case Running1:
     if (bumperTriggered()) {
-      constantSpeed(-15, -15);
-      delay(100);
       constantSpeed(-15, 15);
       delay(200);
       turnToSetPoint(-15, 15);
       stage = Running2;
       enableButton = false;
-      speed = 11;
-      slowTime = millis() + 10000;
-      disable90TurnTime = millis() + 12000;
+      speed = 10;
+      slowTime = millis() + 9000;
+      disable90TurnTime = millis() + 8000;
       return;
     }
     break;
@@ -213,11 +215,15 @@ void loop()
   if (millis() > disable90TurnTime && disable90TurnTime != 0) {
     enable90Turn = false;
     disable90TurnTime = 0;
+    useTruthTable2 = true;
     return;
   }
 
   if      ((!sensorL2 && !sensorR2) && !enable90Turn) error = T_JUNCTION;
-  else if (((!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) || (sensorL2 && !sensorL1 && !sensorR1 && !sensorR2)) && stage == Running2 && !enable90Turn) error = T_JUNCTION;
+  else if (((!sensorL2 && !sensorL1 && !sensorR1 && sensorR2) || (sensorL2 && !sensorL1 && !sensorR1 && !sensorR2))
+           && stage == Running2 && !enable90Turn && (millis() > branchDisable) && branchDisable != 0) {
+    error = T_JUNCTION;
+  }
   else if ( sensorL2 &&  sensorL1 &&  sensorR1 && !sensorR2) error = 3;
   else if ( sensorL2 &&  sensorL1 && !sensorR1 && !sensorR2) error = 2;
   else if ( sensorL2 &&  sensorL1 && !sensorR1 &&  sensorR2) error = 1;
@@ -237,14 +243,18 @@ void loop()
     else if (branchIdx == 3) {
       enable90Turn = true;
       useTruthTable = false;
-      slowTime = millis() + 3000;
-      speed = 11;
+      slowTime = millis() + 5000;
+      speed = 10;
       enableButton = true;
     }
     else if (branchIdx == 4) {
       enable90Turn = false;
+      useTruthTable2 = false;
       speed = 15;
       enableButton = true;
+      branchDisable = millis() + 3000;
+    } else if (branchIdx == 5) {
+      branchDisable = millis() + 1500;
     }
     break;
   default:
@@ -255,6 +265,25 @@ void loop()
         constantSpeed(15, -9);
       } else {
         constantSpeed(15, 15);
+      }
+    } else if (useTruthTable2) {
+      speed = 10;
+      if (!sensorL2) {
+        if (!sensorL1) {
+          constantSpeed(-12, 15);
+        } else {
+          constantSpeed(-8, 15);
+        }
+      } else if (!sensorR2) {
+        if (!sensorR1) {
+          constantSpeed(15, -12);
+        } else {
+          constantSpeed(15, -8);
+        }
+      } else {
+        direction = pidController(error);
+        speedControl((int) direction);
+        previousError = error;
       }
     } else {
       if (millis() > slowTime) {
@@ -268,7 +297,7 @@ void loop()
         }
       } else if (!sensorR2 && enable90Turn) {
         if (!sensorR1) {
-          constantSpeed(15, -12);
+          constantSpeed(15, -13);
         } else {
           constantSpeed(15, -8);
         }
