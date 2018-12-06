@@ -9,7 +9,7 @@
 #define SENSOR_R1 A4
 #define SENSOR_R2 A5
 
-#define DIR_L 11
+#define DIR_L 2
 #define DIR_R 12
 
 #define RQ3 3
@@ -61,7 +61,7 @@ int slowTime = millis();
 
 unsigned long triggeredTime = 0;
 
-unsigned long disable90TurnTime;
+unsigned long disable90TurnTime = 0;
 
 /**
  * We implements a PID controller as a control loop feedback mechanism for the
@@ -216,8 +216,8 @@ void loop()
   switch (error) {
   case T_JUNCTION:
     switch (branchSequence[branchIdx++]) {
-    case Left: turnToSetPoint(-5, 15); break;
-    case Right: turnToSetPoint(15, -5); break;
+    case Left: turnToSetPoint(-7, 15); break;
+    case Right: turnToSetPoint(15, -7); break;
     }
 
     if (branchIdx == 2) { useTruthTable = true; }
@@ -246,8 +246,8 @@ void loop()
     } else {
       if (millis() > slowTime) {
         speed = 15;
-      }
-      if (millis() > disable90TurnTime) {
+      } 
+      if (millis() > disable90TurnTime && disable90TurnTime != 0) {
         enable90Turn = false;
       }
       if (!sensorL2 && enable90Turn) {
