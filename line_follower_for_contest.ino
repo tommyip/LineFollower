@@ -92,9 +92,7 @@ void constantSpeed(int leftSpeed, int rightSpeed)
 {
   digitalWrite(DIR_L, leftSpeed < 0 ? LOW : HIGH);
   digitalWrite(DIR_R, rightSpeed < 0 ? LOW : HIGH);
-  if (rightSpeed < 0) {
-    rightSpeed -= 1;
-  }
+  
   leftSpeed = constrain(abs(leftSpeed), 0, 15);
   rightSpeed = constrain(abs(rightSpeed), 0, 15);
 
@@ -114,7 +112,7 @@ void turnToSetPoint(int leftSpeed, int rightSpeed)
   do {
     readSensorValues();
     constantSpeed(leftSpeed, rightSpeed);
-  } while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2) && !(!sensorL2 && !sensorL1 && sensorR1 && sensorR2) && !(sensorL2 && sensorL1 && !sensorR1 && !sensorR2));
+  } while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2));
 }
 
 boolean bumperTriggered() {
@@ -190,8 +188,8 @@ void loop()
       turnToSetPoint(-15, 15);
       stage = Running2;
       enableButton = false;
-      speed = 13;
-      slowTime = millis() + 2000;
+      speed = 11;
+      slowTime = millis() + 3000;
       disable90TurnTime = millis() + (10 * 1000);
       return;
     }
@@ -216,8 +214,8 @@ void loop()
   switch (error) {
   case T_JUNCTION:
     switch (branchSequence[branchIdx++]) {
-    case Left: turnToSetPoint(-7, 15); break;
-    case Right: turnToSetPoint(15, -7); break;
+    case Left: turnToSetPoint(-6, 15); break;
+    case Right: turnToSetPoint(15, -6); break;
     }
 
     if (branchIdx == 2) { useTruthTable = true; }
