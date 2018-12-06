@@ -46,7 +46,7 @@ Turn branchSequence[] = {Left, Left, Right, Left, Right, Right};
 int branchIdx = 0;
 
 // Run handling
-enum Stage {Waiting, Running1, UTurn, Running2};
+enum Stage {Waiting, Running1, Running2};
 Stage stage = Waiting;
 
 boolean enableButton = true;
@@ -115,7 +115,7 @@ void turnToSetPoint(int leftSpeed, int rightSpeed)
 
 boolean bumperTriggered() {
   if ((!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) && (millis() > buttonCooldown) && enableButton) {
-    buttonCooldown = millis() + 1000;
+    buttonCooldown = millis() + 5000;
     return true;
   }
   return false;
@@ -177,19 +177,16 @@ void loop()
     return;
   case Running1:
     if (bumperTriggered()) {
-      stage = UTurn;
+      constantSpeed(-15, -15);
+      delay(100);
+      constantSpeed(-15, 15);
+      delay(200);
+      turnToSetPoint(-15, 15);
+      stage = Running2;
       enableButton = false;
       return;
     }
     break;
-  case UTurn:
-    constantSpeed(-15, -15);
-    delay(100);
-    constantSpeed(-15, 15);
-    delay(100);
-    turnToSetPoint(-15, 15);
-    stage = Running2;
-    return;
   case Running2:
     if (bumperTriggered()) {
       constantSpeed(0, 0);
@@ -216,7 +213,8 @@ void loop()
 
     if (branchIdx == 2) useTruthTable = true;
     else if (branchIdx == 3) {
-      enableButton = enable90Turn = true;
+      enableButton = true;
+      enable90Turn = true;
       useTruthTable = false;
       slowTime = millis() + 3000;
       speed = 11;
@@ -243,14 +241,14 @@ void loop()
         } else {
           constantSpeed(-8, 15);
         }
-        buttonCooldown = millis() + 100;
+        buttonCooldown = millis() + 200;
       } else if (!sensorR2 && enable90Turn) {
         if (!sensorR1) {
           constantSpeed(15, -13);
         } else {
           constantSpeed(15, -8);
         }
-        buttonCooldown = millis() + 100;
+        buttonCooldown = millis() + 200;
       } else {
         direction = pidController(error);
         speedControl((int) direction);
