@@ -55,6 +55,10 @@ unsigned long buttonCooldown;
 boolean useTruthTable = false;
 boolean enable90Turn = false;
 
+int speed = 15;
+
+int slowTime = millis();
+
 /**
  * We implements a PID controller as a control loop feedback mechanism for the
  * robot car.
@@ -75,8 +79,8 @@ float pidController(float error)
  */
 void speedControl(int direction)
 {
-  int leftSpeed = min(15 + direction, 15);
-  int rightSpeed = min(15 - direction, 15);
+  int leftSpeed = min(speed + direction, 15);
+  int rightSpeed = min(speed - direction, 15);
   constantSpeed(leftSpeed, rightSpeed);
 }
 
@@ -106,12 +110,12 @@ void turnToSetPoint(int leftSpeed, int rightSpeed)
   do {
     readSensorValues();
     constantSpeed(leftSpeed, rightSpeed);
-  } while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2));
+  } while (!(sensorL2 && !sensorL1 && !sensorR1 && sensorR2) && !(!sensorL2 && !sensorL1 && sensorR1 && sensorR2) && !(sensorL2 && sensorL1 && !sensorR1 && !sensorR2));
 }
 
 boolean bumperTriggered() {
   if ((!sensorL2 && !sensorL1 && !sensorR1 && !sensorR2) && (millis() > buttonCooldown) && enableButton) {
-    buttonCooldown = millis() + 5000;
+    buttonCooldown = millis() + 1000;
     return true;
   }
   return false;
@@ -154,7 +158,6 @@ void setup()
   constantSpeed(0, 0);
 
   buttonCooldown = millis();
-  previousMicros = micros();
 }
 
 void loop()
@@ -207,31 +210,52 @@ void loop()
   switch (error) {
   case T_JUNCTION:
     switch (branchSequence[branchIdx++]) {
-    case Left: turnToSetPoint(-7, 15); break;
-    case Right: turnToSetPoint(15, -7); break;
+    case Left: turnToSetPoint(-5, 15); break;
+    case Right: turnToSetPoint(15, -5); break;
     }
 
     if (branchIdx == 2) useTruthTable = true;
     else if (branchIdx == 3) {
       enableButton = enable90Turn = true;
       useTruthTable = false;
+      slowTime = millis() + 3000;
+      speed = 11;
     }
     else if (branchIdx == 4) enable90Turn = false;  // unreachable due to T condition
     else if (branchIdx == 6) enableButton = true;
     break;
   default:
-    if (enable90Turn) {
+    if (useTruthTable) {
       if (!sensorL2 && sensorR2) {
-        constantSpeed(-8, 13);
+        constantSpeed(-9, 15);
       } else if (sensorL2 && !sensorR2) {
-        constantSpeed(13, -8);
+        constantSpeed(15, -9);
       } else {
         constantSpeed(15, 15);
       }
     } else {
-      direction = pidController(error);
-      speedControl((int) direction);
-      previousError = error;
+      if (millis() > slowTime) {
+        speed = 15;
+      }
+      if (!sensorL2 && enable90Turn) {
+        if (!sensorL1) {
+          constantSpeed(-13, 15);
+        } else {
+          constantSpeed(-8, 15);
+        }
+        buttonCooldown = millis() + 100;
+      } else if (!sensorR2 && enable90Turn) {
+        if (!sensorR1) {
+          constantSpeed(15, -13);
+        } else {
+          constantSpeed(15, -8);
+        }
+        buttonCooldown = millis() + 100;
+      } else {
+        direction = pidController(error);
+        speedControl((int) direction);
+        previousError = error;
+      }
     }
   }
 }
