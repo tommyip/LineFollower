@@ -63,6 +63,8 @@ unsigned long branchDisable = 0;
 
 boolean useTruthTable2 = false;
 
+Turn lastTurn = Right;
+
 /**
  * We implements a PID controller as a control loop feedback mechanism for the
  * robot car.
@@ -171,7 +173,7 @@ void loop()
     if (bumperTriggered()) {
       do {
         readSensorValues();
-        delay(100);
+        delay(50);
       } while (!sensorL2 && !sensorR2);
       stage = Running1;
       enableButton = false;
@@ -221,8 +223,8 @@ void loop()
   switch (error) {
   case T_JUNCTION:
     switch (branchSequence[branchIdx++]) {
-    case Left: turnToSetPoint(-6, 15); break;
-    case Right: turnToSetPoint(15, -6); break;
+    case Left: turnToSetPoint(-5, 15); break;
+    case Right: turnToSetPoint(15, -5); break;
     }
 
     if (branchIdx == 2) { useTruthTable = true; }
@@ -254,20 +256,28 @@ void loop()
     } else if (useTruthTable2) {
       if (!sensorL2) {
         if (!sensorL1) {
-          constantSpeed(-13, 15);
+          constantSpeed(-12, 15);
         } else {
           constantSpeed(-8, 15);
         }
+        lastTurn = Left;
       } else if (!sensorR2) {
         if (!sensorR1) {
-          constantSpeed(15, -13);
+          constantSpeed(15, -12);
         } else {
           constantSpeed(15, -8);
         }
+        lastTurn = Right;
       } else if (sensorR2 && sensorR1 && sensorL1 && sensorL2) {
         // backup
-        constantSpeed(-15, -15);
-        delay(50);
+        switch (lastTurn) {
+        case Left:
+          constantSpeed(-15, 7);
+          delay(100);
+        case Right:
+          constantSpeed(7, -15);
+          delay(100);
+        }
       } else {
         direction = pidController(error);
         speedControl((int) direction);
@@ -280,16 +290,23 @@ void loop()
         } else {
           constantSpeed(-8, 15);
         }
+        lastTurn = Left;
       } else if (!sensorR2 && enable90Turn) {
         if (!sensorR1) {
           constantSpeed(15, -12);
         } else {
           constantSpeed(15, -8);
         }
+        lastTurn = Right;
       } else if (enable90Turn && sensorR2 && sensorR1 && sensorL1 && sensorL2) {
-        // backup
-        constantSpeed(-15, -15);
-        delay(50);
+        switch (lastTurn) {
+        case Left:
+          constantSpeed(-15, 7);
+          delay(75);
+        case Right:
+          constantSpeed(7, -15);
+          delay(75);
+        }
       } else {
         direction = pidController(error);
         speedControl((int) direction);
