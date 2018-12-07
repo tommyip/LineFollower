@@ -97,14 +97,6 @@ void constantSpeed(int leftSpeed, int rightSpeed)
   digitalWrite(DIR_L, leftSpeed < 0 ? LOW : HIGH);
   digitalWrite(DIR_R, rightSpeed < 0 ? LOW : HIGH);
 
-  if (rightSpeed < 0) {
-    rightSpeed -= 1;
-  }
-
-  if (leftSpeed < 0) {
-    leftSpeed -= 1;
-  }
-  
   leftSpeed = constrain(abs(leftSpeed), 0, 15);
   rightSpeed = constrain(abs(rightSpeed), 0, 15);
 
@@ -198,7 +190,7 @@ void loop()
       turnToSetPoint(-15, 15);
       stage = Running2;
       enableButton = false;
-      speed = 10;
+      speed = 15;
       slowTime = millis() + 9000;
       disable90TurnTime = millis() + 8000;
       return;
@@ -243,8 +235,8 @@ void loop()
     else if (branchIdx == 3) {
       enable90Turn = true;
       useTruthTable = false;
-      slowTime = millis() + 5000;
-      speed = 10;
+      slowTime = millis() + 4000;
+      speed = 15;
       enableButton = true;
     }
     else if (branchIdx == 4) {
@@ -260,11 +252,13 @@ void loop()
   default:
     if (useTruthTable) {
       if (!sensorL2 && sensorR2) {
-        constantSpeed(-9, 15);
+        constantSpeed(-10, 15);
       } else if (sensorL2 && !sensorR2) {
-        constantSpeed(15, -9);
+        constantSpeed(15, -10);
       } else {
-        constantSpeed(15, 15);
+        direction = pidController(error);
+        speedControl((int) direction);
+        previousError = error;
       }
     } else if (useTruthTable2) {
       speed = 10;
@@ -301,6 +295,10 @@ void loop()
         } else {
           constantSpeed(15, -8);
         }
+      } else if (enable90Turn && sensorR2 && sensorR1 && sensorL1 && sensorL2) {
+        // backup
+        constantSpeed(-15, -15);
+        delay(50);
       } else {
         direction = pidController(error);
         speedControl((int) direction);
