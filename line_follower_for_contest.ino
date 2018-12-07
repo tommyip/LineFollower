@@ -55,10 +55,6 @@ unsigned long buttonCooldown;
 boolean useTruthTable = false;
 boolean enable90Turn = false;
 
-int speed = 15;
-
-int slowTime = millis();
-
 unsigned long triggeredTime = 0;
 
 unsigned long disable90TurnTime = 0;
@@ -87,8 +83,8 @@ float pidController(float error)
  */
 void speedControl(int direction)
 {
-  int leftSpeed = min(speed + direction, 15);
-  int rightSpeed = min(speed - direction, 15);
+  int leftSpeed = min(15 + direction, 15);
+  int rightSpeed = min(15 - direction, 15);
   constantSpeed(leftSpeed, rightSpeed);
 }
 
@@ -166,8 +162,6 @@ void setup()
   buttonCooldown = millis();
 }
 
-boolean running = false;
-
 void loop()
 {
   readSensorValues();
@@ -185,13 +179,13 @@ void loop()
     return;
   case Running1:
     if (bumperTriggered()) {
+      constantSpeed(-15, -15);
+      delay(100);
       constantSpeed(-15, 15);
       delay(200);
       turnToSetPoint(-15, 15);
       stage = Running2;
       enableButton = false;
-      speed = 15;
-      slowTime = millis() + 9000;
       disable90TurnTime = millis() + 8000;
       return;
     }
@@ -235,14 +229,11 @@ void loop()
     else if (branchIdx == 3) {
       enable90Turn = true;
       useTruthTable = false;
-      slowTime = millis() + 4000;
-      speed = 15;
       enableButton = true;
     }
     else if (branchIdx == 4) {
       enable90Turn = false;
       useTruthTable2 = false;
-      speed = 15;
       enableButton = true;
       branchDisable = millis() + 3000;
     } else if (branchIdx == 5) {
@@ -261,37 +252,37 @@ void loop()
         previousError = error;
       }
     } else if (useTruthTable2) {
-      speed = 10;
       if (!sensorL2) {
         if (!sensorL1) {
-          constantSpeed(-12, 15);
+          constantSpeed(-13, 15);
         } else {
           constantSpeed(-8, 15);
         }
       } else if (!sensorR2) {
         if (!sensorR1) {
-          constantSpeed(15, -12);
+          constantSpeed(15, -13);
         } else {
           constantSpeed(15, -8);
         }
+      } else if (sensorR2 && sensorR1 && sensorL1 && sensorL2) {
+        // backup
+        constantSpeed(-15, -15);
+        delay(50);
       } else {
         direction = pidController(error);
         speedControl((int) direction);
         previousError = error;
       }
     } else {
-      if (millis() > slowTime) {
-        speed = 15;
-      }
       if (!sensorL2 && enable90Turn) {
         if (!sensorL1) {
-          constantSpeed(-13, 15);
+          constantSpeed(-12, 15);
         } else {
           constantSpeed(-8, 15);
         }
       } else if (!sensorR2 && enable90Turn) {
         if (!sensorR1) {
-          constantSpeed(15, -13);
+          constantSpeed(15, -12);
         } else {
           constantSpeed(15, -8);
         }
